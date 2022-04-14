@@ -2,7 +2,8 @@
 ##
 ## Script name: hillshade.R
 ##
-## Purpose of script create hillshades
+## Purpose of script:
+## create hillshades
 ##
 ##
 ## Author: Jens Wiesehahn
@@ -46,17 +47,30 @@ library(terra)
 
 ##___________________________________________________
 
+#load terrain
+dtm_path <- here("data/external/dtm.tif")
+dtm <- rast(dtm_path)
 
 
+# hillshade terra
+dtm_prod <- terra::terrain(dtm, v = c("slope", "aspect"), unit = "radians")
+dtm_hillshade <- terra::shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)
+writeRaster(dtm_hillshade, here("data/processed", "terra_hillshade.tif"))
+
+  
 # the whitebox package uses its functions from WhiteboxTools software, to install run:
 # whitebox::install_whitebox()
-
 wbt_init()
 
 # multidirection hillshade WBT
-wbt_multidirectional_hillshade(dem = here("data/external/dtm.tif"),
+wbt_multidirectional_hillshade(dem = dtm_path,
                                output = here("data/processed", "wbt_multidirectional_hillshade.tif"), 
                                compress_rasters= TRUE)
+
+
+
+
+
 
 
 
