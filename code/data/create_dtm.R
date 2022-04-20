@@ -1,16 +1,15 @@
 ##___________________________________________________
 ##
-## Script name: hillshade.R
+## Script name: create_dtm.R
 ##
 ## Purpose of script:
-## create hillshades
-##
+## calculate digital terrain model from las catalog
 ##
 ## Author: Jens Wiesehahn
 ## Copyright (c) Jens Wiesehahn, 2022
 ## Email: wiesehahn.jens@gmail.com
 ##
-## Date Created: 2022-04-10
+## Date Created: 2022-04-20
 ##
 ## Notes:
 ##
@@ -37,40 +36,44 @@
 
 renv::restore()
 library(here)
-library(whitebox)
+library(lidR)
 library(terra)
+library(sf)
 
 ##___________________________________________________
 
 ## load functions into memory
-# source("code/functions/some_script.R")
 
 ##___________________________________________________
 
-#load terrain
-dtm_path <- here("data/external/dtm_025.tif")
-dtm <- rast(dtm_path)
+
+# load catalog or create and save if not existent
+file <- here("data/interim/lidr-catalog.RData")
+if(!file.exists(file)){
+  folder1 <- here("K:/aktiver_datenbestand/ni/lverm/las/stand_2021_0923/daten/3D_Punktwolke_Teil1")
+  folder2 <- here("K:/aktiver_datenbestand/ni/lverm/las/stand_2021_0923/daten/3D_Punktwolke_Teil2")
+  ctg = readLAScatalog(c(folder1, folder2))
+  save(ctg, file = file)
+} else {
+  load(here("data/interim/lidr-catalog.RData"))
+}
+
+# set projection
+projection(ctg) <- 25832
+
+#mapview::mapview(ctg@data)
+bbox <- st_bbox(ctg@data[33542,])
 
 
-# hillshade terra
-dtm_prod <- terra::terrain(dtm, v = c("slope", "aspect"), unit = "radians")
-dtm_hillshade <- terra::shade(slope = dtm_prod$slope, aspect = dtm_prod$aspect)
-writeRaster(dtm_hillshade, here("data/processed", "terra_hillshade.tif"))
+# load lidar data
+las = clip_roi(ctg, bbox)
+las <- filter_poi(las, Classification != 7 & # noise
+                    Classification != 15) # other points (mainly cars)
 
-  
-# the whitebox package uses its functions from WhiteboxTools software, to install run:
-# whitebox::install_whitebox()
-wbt_init()
+# DTM 1m
+dtm <- rasterize_terrain(las, res=1)
+writeRaster(dtm, here("data/external", "dtm_1.tif"))
 
-# multidirection hillshade WBT
-wbt_multidirectional_hillshade(dem = dtm_path,
-                               output = here("data/processed", "wbt_multidirectional_hillshade.tif"), 
-                               compress_rasters= TRUE)
-
-
-
-
-
-
-
-
+# DTM 0.25m
+dtm <- rasterize_terrain(las, res=0.25)
+writeRaster(dtm, here("data/external", "dtm_025.tif"))
